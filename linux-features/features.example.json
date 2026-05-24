@@ -1,3 +1,6 @@
 {
-  "enabled": []
+  "enabled": [
+    "read-aloud",
+    "read-aloud-mcp"
+  ]
 }

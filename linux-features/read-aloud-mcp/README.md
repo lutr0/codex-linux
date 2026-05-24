@@ -1,6 +1,6 @@
 # Read Aloud MCP
 
-Opt-in Linux MCP plugin for reading text aloud.
+Linux MCP plugin for reading text aloud.
 
 This feature stages a separate `read-aloud` Codex plugin with a native Rust MCP
 server. It does not enable microphone input or conversation mode. The first MCP
@@ -11,9 +11,11 @@ surface is intentionally small:
 - `read_aloud` speaks text only when the user or agent explicitly asks for it.
 - `stop` interrupts playback started by the MCP server.
 
-## Enable
+## Configure
 
-Add the feature to `linux-features/features.json` before rebuilding:
+The default Linux feature profile enables this plugin. To make that explicit,
+or to re-enable it after using a minimal feature config, list it in
+`linux-features/features.json` before rebuilding:
 
 ```json
 {

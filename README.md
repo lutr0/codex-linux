@@ -2,11 +2,23 @@
 
 Unofficial Linux build of [OpenAI Codex Desktop](https://openai.com/codex/). The official Codex Desktop app is macOS-only — this project converts the upstream macOS `Codex.dmg` into a runnable Linux Electron app, ships native `.deb` / `.rpm` / `.pkg.tar.zst` packages plus local AppImage self-builds and a Nix flake, and includes a local auto-updater that rebuilds future native Linux packages from newer upstream DMGs.
 
+## Fork notice
+
+This repository is a fork/adaptation of [ilysenko/codex-desktop-linux](https://github.com/ilysenko/codex-desktop-linux). Most of the core Linux port comes from that project, including DMG extraction, ASAR patching, native Linux packaging, launcher integration, bundled plugin staging, Nix support, and the local update-manager architecture.
+
+This fork currently differs in these areas:
+
+- Points install and Nix examples at this public fork, `lutr0/codex-linux`, while keeping the original project credited as the reference.
+- Treats Fedora as the primary validation target: dependency bootstrap includes the RPM build toolchain, the RPM install smoke test uses a pinned Fedora image, and the desktop-session smoke test is designed for a real Fedora login session.
+- Enables the Read Aloud UI and MCP feature profile by default, while keeping other Linux-only additions in the opt-in `linux-features/` framework.
+- Adds dedicated validation scripts for generated-app Electron startup, Fedora RPM installation, and installed desktop-session checks covering updater state, plugin cache sync, Chrome native-host manifests, Computer Use, and Read Aloud.
+- Hardens current upstream browser integration behavior for Linux Chrome, Brave, and Chromium profiles/native messaging instead of relying on a manually patched user cache.
+
 Before opening a pull request, please read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Linux features
 
-Optional Linux-only additions live in `linux-features/`. Use them for integrations that are useful for some users but should not become mandatory core patches. Copy `linux-features/features.example.json` to the git-ignored `linux-features/features.json` before building; enabled features are applied during the install/build pipeline. See [`linux-features/README.md`](linux-features/README.md) for the feature contract.
+Linux-only additions live in `linux-features/`. Use them for integrations that are useful for Linux users but should not become mandatory core patches. The default profile enables Read Aloud UI and MCP support; copy `linux-features/features.example.json` to the git-ignored `linux-features/features.json` before building when you want to add or remove feature ids. Enabled features are applied during the install/build pipeline. See [`linux-features/README.md`](linux-features/README.md) for the feature contract.
 
 ## Supported platforms
 
@@ -18,7 +30,7 @@ Optional Linux-only additions live in `linux-features/`. Use them for integratio
 | openSUSE Tumbleweed / Leap | `zypper` | `.rpm` | Uses `zypper --no-gpg-checks install` for the local rebuild |
 | Arch, Manjaro, EndeavourOS | `pacman` | `.pkg.tar.zst` | |
 | Atomic desktops / other Linux distros | none | `.AppImage` | Local self-build only; no bundled auto-updater |
-| NixOS / Nix | flake | runnable directly | `nix run github:ilysenko/codex-desktop-linux` |
+| NixOS / Nix | flake | runnable directly | `nix run github:lutr0/codex-linux` |
 
 Anything systemd-based should work for the optional auto-updater service (`systemd --user`). The launcher targets Wayland with `XWayland` first (better Electron popup positioning); pure Wayland sessions fall through to `--ozone-platform-hint=auto`. X11 is fully supported.
 
@@ -36,7 +48,7 @@ Anything systemd-based should work for the optional auto-updater service (`syste
 | Linux browser annotations | ✅ always | Stored-anchor screenshots, isolated marker rendering |
 | Chrome plugin native host | ✅ always | Auto-installs the upstream Chrome plugin plus Linux native-messaging support for Chrome, Brave, and Chromium |
 | Linux Computer Use | ⚠️ opt-in | MCP backend registers by default; the in-app UI is opt-in. Supports screenshots, accessibility, window targeting, and input synthesis |
-| Linux Read Aloud | 🧪 opt-in experiment | `linux-features/read-aloud` adds an explicit response speaker button; `linux-features/read-aloud-mcp` stages a separate MCP plugin so the agent can read text aloud on request |
+| Linux Read Aloud | ✅ default profile | Adds an explicit response speaker button and stages a separate MCP plugin; first speech still requires Kokoro setup or a local system TTS backend |
 | Mobile remote control host | 🧪 opt-in experiment | SSH remote projects work normally. Phone/Android host access is upstream macOS-only by default; `linux-features/remote-mobile-control` adds experimental Linux device-key, visibility, and host-enablement patches |
 | Server-gated features (e.g. `gpt-5.5`) | 🟡 server-side | OpenAI rolls per-account, not project-controlled. Building a fresh package does not unlock these. |
 
@@ -64,8 +76,8 @@ export XDG_CACHE_HOME=~/tmp/codex-cache
 The fastest path: install deps, build the local app, build the native package, install it.
 
 ```bash
-git clone https://github.com/ilysenko/codex-desktop-linux.git
-cd codex-desktop-linux
+git clone https://github.com/lutr0/codex-linux.git
+cd codex-linux
 make bootstrap-native
 ```
 
@@ -78,14 +90,14 @@ If dependencies are already installed, use `make install-native` to run only the
 If you want a friendlier first-run checklist before building, use the optional guided setup helper:
 
 ```bash
-git clone https://github.com/ilysenko/codex-desktop-linux.git
-cd codex-desktop-linux
+git clone https://github.com/lutr0/codex-linux.git
+cd codex-linux
 make setup-native
 ```
 
 `make setup-native` is intentionally separate from `make bootstrap-native`, `make install-native`, `make package`, and `make install`, which remain non-interactive for scripts and CI. The guided helper detects your distro, package manager, native package format, desktop session, GUI prompt helpers, `pkexec`, portal status, and Computer Use readiness signals such as `ydotool`, `ydotoold` / `ydotool.service`, the ydotool socket, `/dev/uinput`, input-group membership, desktop window backend hints, and portal package hints. It also reports Read Aloud Kokoro paths, plugin cache paths, settings paths, and doctor commands when available.
 
-It also discovers optional Linux features from `linux-features/*/feature.json` and can write the git-ignored `linux-features/features.json` file for the next build. Re-running it shows the currently enabled features and installed package/updater hints, then skips changes unless you ask for them. Non-interactive setup edits feature config and prints or runs explicitly requested next steps; it does not implicitly run build/package/install.
+It also discovers Linux features from `linux-features/*/feature.json` and can write the git-ignored `linux-features/features.json` file for the next build. Re-running it shows the currently enabled features and installed package/updater hints, then skips changes unless you ask for them. Non-interactive setup edits feature config and prints or runs explicitly requested next steps; it does not implicitly run build/package/install.
 
 For repeatable setup docs or automation, pass feature choices through the environment:
 
@@ -149,21 +161,21 @@ make appimage
 ### NixOS / Nix one-liner
 
 ```bash
-nix run github:ilysenko/codex-desktop-linux
+nix run github:lutr0/codex-linux
 ```
 
 The flake handles dependencies and patches Electron for NixOS. A GitHub Actions bot refreshes the upstream `Codex.dmg` hash and verifies the Nix package outputs in `main`; if you hit a hash mismatch right after an upstream release, wait for the next bot run and retry.
 
-Because flakes do not include the git-ignored `linux-features/features.json` opt-in file, Nix exposes feature-specific app variants for optional integrations. To build and run Codex Desktop with the experimental mobile remote-control feature enabled:
+Because flakes do not include the git-ignored `linux-features/features.json` file, Nix exposes feature-specific app variants for optional integrations. To build and run Codex Desktop with the experimental mobile remote-control feature enabled:
 
 ```bash
-nix run github:ilysenko/codex-desktop-linux#remote-mobile-control
+nix run github:lutr0/codex-linux#remote-mobile-control
 ```
 
 Feature-specific Nix outputs are additive. To enable both the Computer Use UI and experimental mobile remote control:
 
 ```bash
-nix run github:ilysenko/codex-desktop-linux#computer-use-ui-remote-mobile-control
+nix run github:lutr0/codex-linux#computer-use-ui-remote-mobile-control
 ```
 
 For a declarative NixOS/Home Manager install with the mobile remote-control
@@ -191,7 +203,7 @@ This installs the selected Codex Desktop package variant and starts a user
 `nixosModules.default` export is also available for system-level configurations
 that prefer a global user unit.
 
-`nix develop github:ilysenko/codex-desktop-linux` enters a dev shell with the required tooling.
+`nix develop github:lutr0/codex-linux` enters a dev shell with the required tooling.
 
 ### Cachix binary cache
 
@@ -284,13 +296,13 @@ Either path enables the in-app controls on subsequent builds. To opt back out, u
 Nix users can also run the opt-in flake output directly:
 
 ```bash
-nix run github:ilysenko/codex-desktop-linux#codex-desktop-computer-use-ui
+nix run github:lutr0/codex-linux#codex-desktop-computer-use-ui
 ```
 
 The Computer Use UI output can also be combined with Linux feature outputs, for example:
 
 ```bash
-nix run github:ilysenko/codex-desktop-linux#computer-use-ui-remote-mobile-control
+nix run github:lutr0/codex-linux#computer-use-ui-remote-mobile-control
 ```
 
 ### Side-by-side dev variant
@@ -412,10 +424,10 @@ Ubuntu-family `p7zip-full` can be too old for newer APFS DMGs, so `install-deps.
 
 ```bash
 # Fedora 41+
-sudo dnf install python3 7zip curl unzip rpm-build @development-tools
+sudo dnf install python3 7zip curl unzip rpm-build cargo rust @development-tools
 
 # Fedora < 41
-sudo dnf install python3 p7zip p7zip-plugins curl unzip rpm-build
+sudo dnf install python3 p7zip p7zip-plugins curl unzip rpm-build cargo rust
 sudo dnf groupinstall 'Development Tools'
 
 # openSUSE
@@ -546,10 +558,11 @@ make clean-state
 3. It extracts and patches `app.asar` (Linux File Manager integration, tray, single-instance handoff, browser-annotation fixes, Computer Use platform gate, Linux opaque background, etc.) — every patch fail-soft, with regex-driven needles
 4. It rebuilds native Node modules (`better-sqlite3`, `node-pty`) for Linux via `@electron/rebuild`
 5. It downloads the matching Linux Electron runtime (cached under `~/.cache/codex-desktop/electron/`)
-6. It writes the Linux launcher into `codex-app/start.sh` (body sourced from `launcher/start.sh.template`)
-7. `scripts/build-{deb,rpm,pacman}.sh` packages `codex-app/` into a native artifact; `scripts/build-appimage.sh` creates a local AppImage
-8. Default native packages provide `codex-update-manager` plus a `systemd --user` service unit
-9. The updater watches for newer upstream DMGs and rebuilds future native Linux packages locally, unless the package was built with `PACKAGE_WITH_UPDATER=0`
+6. It runs any enabled `linux-features/` stage hooks, including the default Read Aloud UI/MCP staging profile
+7. It writes the Linux launcher into `codex-app/start.sh` (body sourced from `launcher/start.sh.template`)
+8. `scripts/build-{deb,rpm,pacman}.sh` packages `codex-app/` into a native artifact; `scripts/build-appimage.sh` creates a local AppImage
+9. Default native packages provide `codex-update-manager` plus a `systemd --user` service unit
+10. The updater watches for newer upstream DMGs and rebuilds future native Linux packages locally, unless the package was built with `PACKAGE_WITH_UPDATER=0`
 
 The installer replaces the macOS Electron binary with a Linux build, recompiles native modules, and removes macOS-only pieces such as `sparkle`.
 
@@ -588,6 +601,41 @@ make rpm
 pacman -Qip dist/codex-desktop-*.pkg.tar.zst
 pacman -Qlp dist/codex-desktop-*.pkg.tar.zst | sed -n '1,40p'
 ```
+
+For Fedora install checks against a built RPM, run:
+
+```bash
+scripts/ci/fedora-rpm-install-smoke.sh
+```
+
+That installs the RPM in a fresh Fedora container and verifies the launcher,
+update manager, user service, polkit policy, update-builder bundle, managed
+Node.js runtime, bundled Chrome/Computer Use/Read Aloud binaries, and updater
+status JSON.
+
+For a local generated-app launch smoke with an isolated temporary profile, run:
+
+```bash
+scripts/ci/electron-launch-smoke.sh
+```
+
+That verifies the webview server, webview origin probe, bundled plugin cache
+sync, and Electron process spawn without using your real Codex profile.
+
+For a real installed desktop-session validation after installing the native
+package, run:
+
+```bash
+scripts/ci/installed-desktop-session-smoke.sh --launch --json dist/desktop-session-smoke.json
+```
+
+That writes a machine-readable report covering the installed package surface,
+`systemd --user` updater state, launcher startup, real-profile bundled plugin
+cache sync, Chrome/Brave/Chromium native-host manifests, Computer Use doctor,
+and Read Aloud doctor. Use
+`CODEX_DESKTOP_SESSION_REQUIRE_COMPUTER_USE_READY=1` or
+`CODEX_DESKTOP_SESSION_REQUIRE_READ_ALOUD_READY=1` when the desktop session is
+expected to have portals/input/audio fully configured.
 
 ## Versioning
 

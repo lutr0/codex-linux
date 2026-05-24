@@ -10,6 +10,7 @@ depends=(
     'python'
     'p7zip'
     'polkit'
+    'rust'
     'curl'
     'unzip'
     'gcc'

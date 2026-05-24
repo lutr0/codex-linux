@@ -12,7 +12,7 @@ ExclusiveArch:  __ARCH__
 %endif
 
 %if __PACKAGE_WITH_UPDATER__
-Requires:       python3, /usr/bin/7z, polkit, curl, unzip, gcc-c++, make
+Requires:       python3, /usr/bin/7z, polkit, curl, unzip, gcc-c++, make, rpm-build, cargo, rust
 %else
 Requires:       python3, /usr/bin/7z, curl, unzip, gcc-c++, make
 %endif

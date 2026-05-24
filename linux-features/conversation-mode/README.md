@@ -33,7 +33,7 @@ conversation mode speaks through the local Kokoro Read Aloud handler.
   By default it submits after roughly 1.8 seconds of quiet, capped at 2 seconds,
   and a softer continuation threshold keeps low-energy words from being mistaken
   for silence.
-- Speaks assistant output through the opt-in Linux Read Aloud Kokoro backend as
+- Speaks assistant output through the Linux Read Aloud Kokoro backend as
   each assistant turn completes. Multi-turn Codex responses queue later spoken
   turns instead of dropping them after the first spoken item.
 - Keeps a lightweight interrupt monitor active while Codex is speaking or still

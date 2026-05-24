@@ -1,14 +1,16 @@
 # Read aloud
 
-Opt-in Linux read-aloud support for assistant responses.
+Linux read-aloud support for assistant responses.
 
 This feature stays thin. It does not bundle a voice model and it does not speak
 automatically. It adds an explicit icon button under assistant messages. A click
 is the only app-rendering path that starts speech.
 
-## Enable the feature
+## Configure the feature
 
-Add the feature to `linux-features/features.json`:
+The default Linux feature profile enables this feature. To make that explicit,
+or to re-enable it after using a minimal feature config, list it in
+`linux-features/features.json`:
 
 ```json
 {
@@ -59,10 +61,10 @@ hidden inside message rendering:
 That keeps the safe primitive small while leaving room for a real back-and-forth
 voice experience.
 
-For the first agent-facing primitive, enable `linux-features/read-aloud-mcp`.
-That stages a separate `read-aloud` MCP plugin with `doctor`, `read_aloud`, and
-`stop` tools. It reuses the same Kokoro paths and runtime overrides documented
-below.
+For the first agent-facing primitive, keep `linux-features/read-aloud-mcp`
+enabled. That stages a separate `read-aloud` MCP plugin with `doctor`,
+`read_aloud`, and `stop` tools. It reuses the same Kokoro paths and runtime
+overrides documented below.
 
 ## Voice model
 

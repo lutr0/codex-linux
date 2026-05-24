@@ -6,7 +6,8 @@ set -Eeuo pipefail
 # Converts the official macOS Codex Desktop app to run on Linux
 # ============================================================================
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INVOCATION_DIR="$(pwd)"
 CODEX_APP_ID="${CODEX_APP_ID:-codex-desktop}"
 CODEX_APP_DISPLAY_NAME="${CODEX_APP_DISPLAY_NAME:-Codex Desktop}"
 INSTALL_ROOT="${CODEX_INSTALL_ROOT:-$SCRIPT_DIR}"
@@ -40,6 +41,23 @@ ICON_SOURCE="$SCRIPT_DIR/assets/codex.png"
 . "$SCRIPT_DIR/scripts/lib/build-info.sh"
 
 # ---- Create start script ----
+absolutize_invocation_path_var() {
+    local name="$1"
+    local value="${!name:-}"
+
+    [ -n "$value" ] || return 0
+    case "$value" in
+        /*) ;;
+        *) printf -v "$name" '%s/%s' "$INVOCATION_DIR" "$value" ;;
+    esac
+    export "$name"
+}
+
+normalize_invocation_relative_output_paths() {
+    absolutize_invocation_path_var CODEX_PATCH_REPORT_JSON
+    absolutize_invocation_path_var CODEX_REBUILD_REPORT_JSON
+}
+
 create_start_script() {
     local quoted_app_id
     local quoted_app_display_name
@@ -78,6 +96,7 @@ main() {
     echo ""                                             >&2
 
     parse_args "$@"
+    normalize_invocation_relative_output_paths
     validate_app_identity
     check_deps
     if [ "$INSPECT_ONLY" -ne 1 ]; then

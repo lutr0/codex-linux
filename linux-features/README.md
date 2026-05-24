@@ -1,22 +1,25 @@
 # Linux Features
 
-`linux-features/` contains opt-in Linux integration modules for this wrapper.
-These are not upstream Codex plugins; they are Linux-side extensions that can
-add ASAR patches, staged resources, or build/install hooks.
+`linux-features/` contains Linux integration modules for this wrapper. These
+are not upstream Codex plugins; they are Linux-side extensions that can add ASAR
+patches, staged resources, or build/install hooks. Some features ship in the
+default profile, while others stay disabled until listed in `features.json`.
 
-By default, no optional Linux features are enabled. Copy
-`features.example.json` to `features.json` before running `./install.sh` or
-building packages, then list the feature ids you want:
+The default feature profile enables the Linux Read Aloud UI and MCP plugin so
+generated packages keep response speech parity. Copy `features.example.json` to
+`features.json` before running `./install.sh` or building packages, then edit
+the feature ids you want:
 
 ```json
 {
   "enabled": [
-    "example-feature"
+    "read-aloud",
+    "read-aloud-mcp"
   ]
 }
 ```
 
-`features.json` is ignored by git so local choices do not leak into commits.
+Use `"enabled": []` for a minimal build. `features.json` is ignored by git so local choices do not leak into commits.
 Feature choices are read during the install/build pipeline; if you change this
 file after an app has already been generated, rerun the install/build step.
 Native packages preserve the enabled feature id list in the packaged

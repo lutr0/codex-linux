@@ -5,7 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 
-export CODEX_LINUX_FEATURES_CONFIG="$REPO_DIR/linux-features/features.example.json"
+SMOKE_FEATURES_CONFIG="$TMP_DIR/features.empty.json"
+printf '%s\n' '{"enabled":[]}' > "$SMOKE_FEATURES_CONFIG"
+export CODEX_LINUX_FEATURES_CONFIG="$SMOKE_FEATURES_CONFIG"
 
 cleanup() {
     rm -rf "$TMP_DIR"
@@ -855,6 +857,28 @@ SCRIPT
     [ -z "$third_line" ] || fail "Expected make build-app-fresh default DMG argument to be empty, got: $(cat "$install_log")"
 }
 
+test_installer_report_paths_are_invocation_relative() {
+    info "Checking installer report paths stay invocation-relative"
+    local workspace="$TMP_DIR/installer-report-paths"
+    local output_log="$workspace/output.log"
+
+    mkdir -p "$workspace"
+
+    (
+        cd "$workspace"
+        export CODEX_INSTALLER_SOURCE_ONLY=1
+        export CODEX_PATCH_REPORT_JSON=reports/patch-report.json
+        export CODEX_REBUILD_REPORT_JSON=reports/rebuild-report.json
+        . "$REPO_DIR/install.sh"
+
+        normalize_invocation_relative_output_paths
+        printf '%s\n' "$CODEX_PATCH_REPORT_JSON" "$CODEX_REBUILD_REPORT_JSON" > "$output_log"
+    )
+
+    assert_contains "$output_log" "$workspace/reports/patch-report.json"
+    assert_contains "$output_log" "$workspace/reports/rebuild-report.json"
+}
+
 test_native_shortcut_targets_compose_existing_flows() {
     info "Checking native install/update shortcut targets"
     local install_log="$TMP_DIR/make-install-native.log"
@@ -892,12 +916,143 @@ test_fedora_dependency_bootstrap_installs_rpmbuild() {
     awk '/^install_dnf\(\) \{/,/^}/' "$install_deps" | grep -q -- "rpm-build" \
         || fail "install_dnf must install rpm-build for rpmbuild"
 
-    assert_contains "$install_deps" "sudo dnf install python3 7zip curl unzip rpm-build @development-tools"
-    assert_contains "$install_deps" "sudo dnf install nodejs npm python3 p7zip p7zip-plugins curl unzip rpm-build"
-    assert_contains "$helper" "sudo dnf install python3 7zip curl unzip rpm-build @development-tools"
-    assert_contains "$helper" "sudo dnf install nodejs npm python3 p7zip p7zip-plugins curl unzip rpm-build"
-    assert_contains "$readme" "sudo dnf install python3 7zip curl unzip rpm-build @development-tools"
-    assert_contains "$readme" "sudo dnf install python3 p7zip p7zip-plugins curl unzip rpm-build"
+    assert_contains "$install_deps" "sudo dnf install python3 7zip curl unzip rpm-build cargo rust @development-tools"
+    assert_contains "$install_deps" "sudo dnf install nodejs npm python3 p7zip p7zip-plugins curl unzip rpm-build cargo rust"
+    assert_contains "$helper" "sudo dnf install python3 7zip curl unzip rpm-build cargo rust @development-tools"
+    assert_contains "$helper" "sudo dnf install nodejs npm python3 p7zip p7zip-plugins curl unzip rpm-build cargo rust"
+    assert_contains "$readme" "sudo dnf install python3 7zip curl unzip rpm-build cargo rust @development-tools"
+    assert_contains "$readme" "sudo dnf install python3 p7zip p7zip-plugins curl unzip rpm-build cargo rust"
+}
+
+test_ci_validation_targets_are_discoverable() {
+    info "Checking Linux validation CI targets and script help"
+    local workspace="$TMP_DIR/ci-validation-help"
+    local help_log="$workspace/help.log"
+
+    mkdir -p "$workspace"
+
+    assert_mode "$REPO_DIR/scripts/ci/fedora-rpm-install-smoke.sh" "755"
+    assert_mode "$REPO_DIR/scripts/ci/electron-launch-smoke.sh" "755"
+    assert_mode "$REPO_DIR/scripts/ci/installed-desktop-session-smoke.sh" "755"
+
+    bash "$REPO_DIR/scripts/ci/fedora-rpm-install-smoke.sh" --help >"$help_log"
+    assert_contains "$help_log" "Fedora container"
+    assert_contains "$help_log" "CI_RPM_INSTALL_IMAGE"
+
+    bash "$REPO_DIR/scripts/ci/electron-launch-smoke.sh" --help >"$help_log"
+    assert_contains "$help_log" "temporary HOME/XDG profile"
+    assert_contains "$help_log" "CODEX_ELECTRON_SMOKE_PORT_START"
+
+    bash "$REPO_DIR/scripts/ci/installed-desktop-session-smoke.sh" --help >"$help_log"
+    assert_contains "$help_log" "real user profile"
+    assert_contains "$help_log" "CODEX_DESKTOP_SESSION_REQUIRE_COMPUTER_USE_READY"
+
+    bash "$REPO_DIR/scripts/ci-local.sh" help >"$help_log"
+    assert_contains "$help_log" "rpm-install"
+    assert_contains "$help_log" "electron-launch"
+    assert_contains "$help_log" "desktop-session"
+}
+
+test_desktop_session_smoke_reports_fixture_results() {
+    info "Checking desktop-session smoke report generation with a fixture app"
+    local workspace="$TMP_DIR/desktop-session-smoke-fixture"
+    local app_dir="$workspace/app"
+    local bin_dir="$workspace/bin"
+    local home_dir="$workspace/home"
+    local runtime_dir="$workspace/run"
+    local report="$workspace/report.json"
+    local output_log="$workspace/output.log"
+    local plugin_arch
+    local status
+
+    case "$(uname -m)" in
+        x86_64|amd64) plugin_arch="x64" ;;
+        aarch64|arm64) plugin_arch="arm64" ;;
+        *) plugin_arch="$(uname -m)" ;;
+    esac
+
+    mkdir -p \
+        "$app_dir/.codex-linux" \
+        "$app_dir/resources/node-runtime/bin" \
+        "$app_dir/resources/plugins/openai-bundled/plugins/chrome/extension-host/linux/$plugin_arch" \
+        "$app_dir/resources/plugins/openai-bundled/plugins/chrome/scripts" \
+        "$app_dir/resources/plugins/openai-bundled/plugins/computer-use/bin" \
+        "$app_dir/resources/plugins/openai-bundled/plugins/read-aloud/bin" \
+        "$app_dir/resources/read-aloud" \
+        "$app_dir/update-builder/linux-features" \
+        "$bin_dir" \
+        "$home_dir" \
+        "$runtime_dir"
+    chmod 700 "$runtime_dir"
+
+    printf '%s\n' '#!/usr/bin/env bash' 'case "${1:-}" in --help) echo "--wayland --x11" ;; *) exit 0 ;; esac' > "$app_dir/start.sh"
+    printf '%s\n' '#!/usr/bin/env bash' 'echo node fixture' > "$app_dir/resources/node-runtime/bin/node"
+    printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$app_dir/resources/plugins/openai-bundled/plugins/chrome/extension-host/linux/$plugin_arch/extension-host"
+    printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$app_dir/resources/read-aloud/kokoro-stdin"
+    chmod +x \
+        "$app_dir/start.sh" \
+        "$app_dir/resources/node-runtime/bin/node" \
+        "$app_dir/resources/plugins/openai-bundled/plugins/chrome/extension-host/linux/$plugin_arch/extension-host" \
+        "$app_dir/resources/read-aloud/kokoro-stdin"
+
+    printf '%s\n' '{}' > "$app_dir/resources/app.asar"
+    printf '%s\n' '{"version":"fixture"}' > "$app_dir/.codex-linux/build-info.json"
+    printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$app_dir/update-builder/install.sh"
+    printf '%s\n' '{"enabled":["read-aloud","read-aloud-mcp"]}' > "$app_dir/update-builder/linux-features/features.json"
+    printf '%s\n' '{"extensionHostName":"com.openai.codex","extensionId":"abcdefghijklmnopabcdefghijklmnop"}' > "$app_dir/resources/plugins/openai-bundled/plugins/chrome/scripts/extension-id.json"
+
+    cat > "$app_dir/resources/plugins/openai-bundled/plugins/read-aloud/bin/codex-read-aloud-linux" <<'SCRIPT'
+#!/usr/bin/env bash
+if [ "${1:-}" = "doctor" ]; then
+    printf '%s\n' '{"platform":"linux","available":false,"kokoro":{"runner":{"exists":true,"executable":true}}}'
+    exit 0
+fi
+exit 0
+SCRIPT
+    cat > "$app_dir/resources/plugins/openai-bundled/plugins/computer-use/bin/codex-computer-use-linux" <<'SCRIPT'
+#!/usr/bin/env bash
+if [ "${1:-}" = "doctor" ]; then
+    printf '%s\n' '{"readiness":{"can_register_mcp_tools":true,"can_query_windows":false,"can_send_development_input":false}}'
+    exit 0
+fi
+exit 0
+SCRIPT
+    cat > "$bin_dir/codex-update-manager" <<'SCRIPT'
+#!/usr/bin/env bash
+if [ "${1:-}" = "status" ] && [ "${2:-}" = "--json" ]; then
+    printf '%s\n' 'not-json'
+    exit 0
+fi
+exit 1
+SCRIPT
+    chmod +x \
+        "$app_dir/resources/plugins/openai-bundled/plugins/read-aloud/bin/codex-read-aloud-linux" \
+        "$app_dir/resources/plugins/openai-bundled/plugins/computer-use/bin/codex-computer-use-linux" \
+        "$bin_dir/codex-update-manager"
+
+    set +e
+    HOME="$home_dir" \
+    XDG_RUNTIME_DIR="$runtime_dir" \
+    DISPLAY=":99" \
+    PATH="$bin_dir:$PATH" \
+        bash "$REPO_DIR/scripts/ci/installed-desktop-session-smoke.sh" \
+            --app-dir "$app_dir" \
+            --json "$report" >"$output_log" 2>&1
+    status=$?
+    set -e
+
+    [ "$status" -ne 0 ] || fail "desktop-session smoke fixture should fail because system package paths are intentionally absent"
+    assert_file_exists "$report"
+    assert_contains "$output_log" "Wrote desktop-session smoke report"
+    assert_contains "$report" '"name": "installed app directory"'
+    assert_contains "$report" '"name": "update manager status"'
+    assert_contains "$report" 'status command emitted invalid JSON'
+    assert_contains "$report" '"name": "default Linux feature profile"'
+    assert_contains "$report" '"name": "Read Aloud doctor"'
+    assert_contains "$report" '"name": "Computer Use doctor"'
+    assert_contains "$report" '"name": "packaged launcher smoke"'
+    assert_contains "$report" '"status": "skip"'
+    assert_contains "$report" '"status": "fail"'
 }
 
 test_setup_native_wizard_noninteractive_feature_writer() {
@@ -2628,6 +2783,16 @@ JS
     assert_contains "$browser_client" "codexLinuxChromeUserDataDirectories"
     assert_contains "$browser_client" '"BraveSoftware","Brave-Browser"'
     assert_contains "$browser_client" '".config","chromium"'
+
+    cat > "$browser_client" <<'JS'
+import{resolve as Y5}from"path";import{homedir as Z5,platform as X5}from"os";var hl=Y5(Z5(),X5()==="win32"?"AppData\\Local\\Google\\Chrome\\User Data":"Library/Application Support/Google/Chrome");import{ClassicLevel as Q5}from"./node_modules/classic-level.mjs";import{resolve as rh}from"path";import{tmpdir as e9}from"os";import{cp as t9,mkdtemp as r9,rm as fT}from"fs/promises";import{existsSync as n9}from"fs";var mT=async(e,t)=>{let r=rh(hl,e,"Local Extension Settings",t);if(!n9(r))return null;let n=await r9(rh(o9(),"codex"));await t9(r,n,{recursive:!0}),await fT(rh(n,"LOCK"));let o=new Q5(n,{createIfMissing:!1,keyEncoding:"utf8",valueEncoding:"utf8"});try{await o.open();let i=await o.get("extensionInstanceId");if(!i)return null;let s=JSON.parse(i);return typeof s!="string"?null:s}finally{await o.close(),await fT(n,{force:!0,recursive:!0})}},o9=()=>"nodeRepl"in globalThis&&globalThis.nodeRepl?globalThis.nodeRepl.tmpDir:e9();var hT=async e=>{if(e.type!=="extension"||!e.metadata?.extensionInstanceId||!e.metadata.extensionId)return e;let t=await a9(e.metadata.extensionId,e.metadata.extensionInstanceId);return t?{...e,metadata:{...e.metadata,profileName:t.name,profileIsLastUsed:t.isLastUsed.toString(),profileOrdering:t.orderingIndex.toString()}}:e},a9=async(e,t)=>(await u9(e)).find(o=>o.instanceId===t)||null,u9=async e=>{let t=await c9();return await Promise.all(t.map(async r=>({...r,instanceId:await mT(r.id,e).catch(n=>(ne(n),null))})))},c9=async()=>{let e=s9(hl,"Local State"),t=JSON.parse(await i9(e,"utf8"));return t.profile.profiles_order.map((r,n)=>{let o=t.profile.info_cache[r];return o?{id:r,name:o.name,isLastUsed:t.profile.last_used===r,orderingIndex:n,avatarUrl:o.avatar_icon}:null}).filter(r=>!!r)};
+JS
+    node "$REPO_DIR/scripts/lib/patch-chrome-plugin.js" "$chrome_dir" >/dev/null 2>&1
+    assert_contains "$browser_client" "codexLinuxChromeUserDataDirectories"
+    assert_contains "$browser_client" '"google-chrome-beta"'
+    assert_contains "$browser_client" '"google-chrome-unstable"'
+    assert_contains "$browser_client" "instanceId:await mT(o.id,e,r)"
+    assert_not_contains "$browser_client" "await c9()"
 }
 
 test_chrome_marketplace_fallback_synthesis() {
@@ -4576,8 +4741,11 @@ main() {
     test_make_install_reports_missing_native_packages
     test_make_build_app_uses_installer_download_flow_by_default
     test_make_build_app_fresh_uses_installer_fresh_flow
+    test_installer_report_paths_are_invocation_relative
     test_native_shortcut_targets_compose_existing_flows
     test_fedora_dependency_bootstrap_installs_rpmbuild
+    test_ci_validation_targets_are_discoverable
+    test_desktop_session_smoke_reports_fixture_results
     test_setup_native_wizard_noninteractive_feature_writer
     test_setup_native_wizard_rejects_invalid_feature_ids
     test_setup_native_wizard_rejects_conflicting_feature_ids

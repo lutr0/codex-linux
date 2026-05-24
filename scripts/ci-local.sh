@@ -25,6 +25,9 @@ Targets:
   core                       Run shell, Rust, Node patcher, and smoke tests
   deb                        Build and inspect the Debian package
   rpm                        Build and inspect the RPM package
+  rpm-install                Install an existing RPM in a fresh Fedora container and verify runtime package contents
+  electron-launch            Launch generated codex-app with a temporary profile and verify webview/Electron startup
+  desktop-session            Validate an installed package from the current desktop session
   pacman                     Build and inspect the pacman package
   install-deps               Test install-deps on Ubuntu 22.04, Ubuntu 24.04, and Debian 12
   install-deps:ubuntu-22.04  Test install-deps on one apt image
@@ -187,6 +190,15 @@ run_target() {
             ;;
         core|deb|rpm|pacman|nix|upstream)
             run_container_job "$target" "$(image_key_for_job "$target")"
+            ;;
+        rpm-install)
+            "$REPO_DIR/scripts/ci/fedora-rpm-install-smoke.sh"
+            ;;
+        electron-launch)
+            "$REPO_DIR/scripts/ci/electron-launch-smoke.sh"
+            ;;
+        desktop-session)
+            "$REPO_DIR/scripts/ci/installed-desktop-session-smoke.sh"
             ;;
         install-deps)
             run_target install-deps:ubuntu-22.04
