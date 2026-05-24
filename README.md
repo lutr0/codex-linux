@@ -8,7 +8,7 @@ This repository is a fork/adaptation of [ilysenko/codex-desktop-linux](https://g
 
 This fork currently differs in these areas:
 
-- Points install and Nix examples at this public fork, `lutr0/codex-linux`, while keeping the original project credited as the reference.
+- Points install and Nix examples at this public fork, `lutr0/codex-desktop-linux`, while keeping the original project credited as the reference.
 - Treats Fedora as the primary validation target: dependency bootstrap includes the RPM build toolchain, the RPM install smoke test uses a pinned Fedora image, and the desktop-session smoke test is designed for a real Fedora login session.
 - Enables the Read Aloud UI and MCP feature profile by default, while keeping other Linux-only additions in the opt-in `linux-features/` framework.
 - Adds dedicated validation scripts for generated-app Electron startup, Fedora RPM installation, and installed desktop-session checks covering updater state, plugin cache sync, Chrome native-host manifests, Computer Use, and Read Aloud.
@@ -30,7 +30,7 @@ Linux-only additions live in `linux-features/`. Use them for integrations that a
 | openSUSE Tumbleweed / Leap | `zypper` | `.rpm` | Uses `zypper --no-gpg-checks install` for the local rebuild |
 | Arch, Manjaro, EndeavourOS | `pacman` | `.pkg.tar.zst` | |
 | Atomic desktops / other Linux distros | none | `.AppImage` | Local self-build only; no bundled auto-updater |
-| NixOS / Nix | flake | runnable directly | `nix run github:lutr0/codex-linux` |
+| NixOS / Nix | flake | runnable directly | `nix run github:lutr0/codex-desktop-linux` |
 
 Anything systemd-based should work for the optional auto-updater service (`systemd --user`). The launcher targets Wayland with `XWayland` first (better Electron popup positioning); pure Wayland sessions fall through to `--ozone-platform-hint=auto`. X11 is fully supported.
 
@@ -76,8 +76,8 @@ export XDG_CACHE_HOME=~/tmp/codex-cache
 The fastest path: install deps, build the local app, build the native package, install it.
 
 ```bash
-git clone https://github.com/lutr0/codex-linux.git
-cd codex-linux
+git clone https://github.com/lutr0/codex-desktop-linux.git
+cd codex-desktop-linux
 make bootstrap-native
 ```
 
@@ -90,8 +90,8 @@ If dependencies are already installed, use `make install-native` to run only the
 If you want a friendlier first-run checklist before building, use the optional guided setup helper:
 
 ```bash
-git clone https://github.com/lutr0/codex-linux.git
-cd codex-linux
+git clone https://github.com/lutr0/codex-desktop-linux.git
+cd codex-desktop-linux
 make setup-native
 ```
 
@@ -161,7 +161,7 @@ make appimage
 ### NixOS / Nix one-liner
 
 ```bash
-nix run github:lutr0/codex-linux
+nix run github:lutr0/codex-desktop-linux
 ```
 
 The flake handles dependencies and patches Electron for NixOS. A GitHub Actions bot refreshes the upstream `Codex.dmg` hash and verifies the Nix package outputs in `main`; if you hit a hash mismatch right after an upstream release, wait for the next bot run and retry.
@@ -169,13 +169,13 @@ The flake handles dependencies and patches Electron for NixOS. A GitHub Actions 
 Because flakes do not include the git-ignored `linux-features/features.json` file, Nix exposes feature-specific app variants for optional integrations. To build and run Codex Desktop with the experimental mobile remote-control feature enabled:
 
 ```bash
-nix run github:lutr0/codex-linux#remote-mobile-control
+nix run github:lutr0/codex-desktop-linux#remote-mobile-control
 ```
 
 Feature-specific Nix outputs are additive. To enable both the Computer Use UI and experimental mobile remote control:
 
 ```bash
-nix run github:lutr0/codex-linux#computer-use-ui-remote-mobile-control
+nix run github:lutr0/codex-desktop-linux#computer-use-ui-remote-mobile-control
 ```
 
 For a declarative NixOS/Home Manager install with the mobile remote-control
@@ -203,7 +203,7 @@ This installs the selected Codex Desktop package variant and starts a user
 `nixosModules.default` export is also available for system-level configurations
 that prefer a global user unit.
 
-`nix develop github:lutr0/codex-linux` enters a dev shell with the required tooling.
+`nix develop github:lutr0/codex-desktop-linux` enters a dev shell with the required tooling.
 
 ### Cachix binary cache
 
@@ -296,13 +296,13 @@ Either path enables the in-app controls on subsequent builds. To opt back out, u
 Nix users can also run the opt-in flake output directly:
 
 ```bash
-nix run github:lutr0/codex-linux#codex-desktop-computer-use-ui
+nix run github:lutr0/codex-desktop-linux#codex-desktop-computer-use-ui
 ```
 
 The Computer Use UI output can also be combined with Linux feature outputs, for example:
 
 ```bash
-nix run github:lutr0/codex-linux#computer-use-ui-remote-mobile-control
+nix run github:lutr0/codex-desktop-linux#computer-use-ui-remote-mobile-control
 ```
 
 ### Side-by-side dev variant
